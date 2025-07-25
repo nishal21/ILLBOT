@@ -1,0 +1,6 @@
+{
+  "name": "ILLBOT",
+  "description": "An AI-powered writing assistant with a modern, sci-fi interface. ILLBOT helps you paraphrase, summarize, and check the grammar of your text to enhance your writing, inspired by QuillBot and powered by Gemini.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
