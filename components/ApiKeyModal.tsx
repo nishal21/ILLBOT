@@ -27,10 +27,10 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onSave, onClose, curre
 
   return (
     <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full m-4 ring-1 ring-white/10">
+      <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-lg w-full m-4 ring-1 ring-white/10">
         <div className="flex justify-between items-start mb-4">
           <h2 className="text-2xl font-bold text-slate-100">API Key Settings</h2>
-          {onClose && (
+          {onClose && currentKey && (
               <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors text-2xl leading-none">&times;</button>
           )}
         </div>
@@ -42,11 +42,21 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onSave, onClose, curre
                     <span className="font-mono text-green-400 text-sm">••••••••••••••••••••{currentKey.slice(-4)}</span>
                     <button onClick={onClear} className="text-sm text-red-400 hover:text-red-300 font-semibold transition-colors">Clear Key</button>
                 </div>
-                 <p className="text-xs text-slate-500">To change your key, clear the current one and enter a new one.</p>
+                 <p className="text-xs text-slate-500">To change your key, clear the current one and you will be prompted to enter a new one.</p>
             </div>
         ) : (
             <div className="space-y-4">
-                <p className="text-slate-300">To use ILLBOT, please enter your Google Gemini API key. You can get a free key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline hover:text-indigo-300">Google AI Studio</a>.</p>
+                <p className="text-slate-300">
+                    To use ILLBOT, please provide your Google Gemini API key.
+                </p>
+                <div className="bg-slate-900/50 border border-slate-700 p-3 rounded-lg text-sm">
+                    <p className="font-semibold text-indigo-300">How to get your API key:</p>
+                    <ol className="list-decimal list-inside mt-2 space-y-1 text-slate-400">
+                        <li>Visit <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline hover:text-indigo-300">Google AI Studio</a>.</li>
+                        <li>Click "Create API key" to generate a new key.</li>
+                        <li>Copy the key and paste it below.</li>
+                    </ol>
+                </div>
                 <div>
                     <label htmlFor="apiKey" className="text-sm font-medium text-slate-400">Gemini API Key</label>
                     <input
@@ -60,6 +70,9 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ onSave, onClose, curre
                     />
                 </div>
                 {error && <p className="text-red-400 text-sm">{error}</p>}
+                 <p className="text-xs text-slate-500 text-center pt-2">
+                    <span className="font-semibold">How is my key stored?</span> Your API key is saved securely in your browser's local storage and is never sent to our servers. It's used directly from your browser to communicate with the Google AI API.
+                </p>
                 <button
                     onClick={handleSave}
                     disabled={!keyInput.trim() || isLoading}
