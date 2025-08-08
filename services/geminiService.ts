@@ -18,44 +18,38 @@ import {
 let ai: GoogleGenAI | null = null;
 const model = 'gemini-2.5-flash';
 
-/**
- * Initializes the GoogleGenAI client with the provided API key.
- * @param apiKey The Gemini API key.
- * @returns True if initialization was successful, false otherwise.
- */
-export const initializeAiClient = (apiKey: string): boolean => {
-  if (!apiKey || typeof apiKey !== 'string' || !apiKey.trim()) {
-    ai = null;
-    return false;
-  }
-  try {
-    // The constructor itself doesn't throw for bad format, but it's the first step.
-    // Actual API calls will fail later if the key is truly invalid.
-    ai = new GoogleGenAI({ apiKey });
-    return true;
-  } catch (error) {
-    console.error("Failed to initialize GoogleGenAI client:", error);
-    ai = null;
-    return false;
-  }
+export const initializeAi = async (apiKey: string): Promise<boolean> => {
+    try {
+        const newAi = new GoogleGenAI({ apiKey });
+        // Perform a simple, cheap check to validate the key
+        await newAi.models.generateContent({ model: 'gemini-2.5-flash', contents: [{text: 'test'}]});
+        ai = newAi; // Assign only after successful validation
+        return true;
+    } catch (error) {
+        console.error("API Key validation failed:", error);
+        ai = null;
+        return false;
+    }
 };
 
-/**
- * Retrieves the initialized GoogleGenAI client.
- * @returns The GoogleGenAI client instance.
- * @throws An error if the client has not been initialized.
- */
+export const clearAi = () => {
+    ai = null;
+};
+
+export const isAiInitialized = (): boolean => !!ai;
+
 const getAiClient = (): GoogleGenAI => {
     if (!ai) {
-        throw new Error("AI Client not initialized. Please set your API key in Settings.");
+        throw new Error("AI service not initialized. Please set your API key in Settings.");
     }
     return ai;
 }
 
+
 // --- Updated "Smarter" Services ---
 
 export const paraphraseText = async (text: string, mode: ParaphraseMode): Promise<string> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     let systemInstruction = "You are an expert writer. Your task is to paraphrase the given text while preserving its core meaning. Return only the paraphrased text.";
     let prompt = `Text to paraphrase: "${text}"`;
 
@@ -82,8 +76,8 @@ export const paraphraseText = async (text: string, mode: ParaphraseMode): Promis
     }
 
     try {
-        const response: GenerateContentResponse = await client.models.generateContent({
-            model: model, contents: prompt,
+        const response: GenerateContentResponse = await aiClient.models.generateContent({
+            model: model, contents: [{text: prompt}],
             config: { systemInstruction: systemInstruction, temperature: mode === 'Creative' ? 0.9 : 0.7 }
         });
         return response.text;
@@ -94,11 +88,11 @@ export const paraphraseText = async (text: string, mode: ParaphraseMode): Promis
 };
 
 export const summarizeText = async (text: string, format: SummarizerFormat, wordCount: number): Promise<string> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     const prompt = `Summarize the following text in approximately ${wordCount} words, formatted as a ${format === 'Paragraph' ? 'single paragraph' : 'series of key bullet points'}. Text: "${text}"`;
     try {
-         const response: GenerateContentResponse = await client.models.generateContent({
-            model: model, contents: prompt,
+         const response: GenerateContentResponse = await aiClient.models.generateContent({
+            model: model, contents: [{text: prompt}],
             config: { systemInstruction: "You are an expert summarizer. Your task is to distill text into clear and accurate summaries of a specified length and format." }
         });
         return response.text;
@@ -109,11 +103,11 @@ export const summarizeText = async (text: string, format: SummarizerFormat, word
 };
 
 export const checkGrammar = async (text: string): Promise<string> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     const prompt = `Correct any grammar and spelling mistakes in the following text. Return only the full, corrected text. For every correction you make, you MUST wrap the original incorrect text in '~~' and the new corrected text in '**'. For example, if the input is "I is happy.", the output should be "I ~~is~~**am** happy.". Do not provide any explanation, just the marked-up text. Text: "${text}"`;
     try {
-        const response: GenerateContentResponse = await client.models.generateContent({
-            model: model, contents: prompt,
+        const response: GenerateContentResponse = await aiClient.models.generateContent({
+            model: model, contents: [{text: prompt}],
             config: { systemInstruction: "You are a meticulous proofreader. Your job is to correct grammatical errors, spelling mistakes, and punctuation, and mark up the changes clearly.", temperature: 0.0 }
         });
         return response.text;
@@ -131,7 +125,7 @@ export type AIDetectionResult = {
 };
 
 export const detectAIText = async (text: string): Promise<AIDetectionResult> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     const systemInstruction = `You are an expert in computational linguistics and stylistic analysis, acting as a highly accurate "AI Text Detector". Your sole mission is to determine if a piece of text was written by a human or generated by an AI. You have been trained to see beyond surface-level grammar and structure.`;
 
     const prompt = `Carefully analyze the following text for subtle linguistic markers of AI generation. Go beyond simple grammar and structure.
@@ -154,9 +148,9 @@ Based on your expert analysis, provide a JSON object with:
 Text to analyze: "${text}"`;
 
     try {
-        const response = await client.models.generateContent({
+        const response = await aiClient.models.generateContent({
             model: model,
-            contents: prompt,
+            contents: [{text: prompt}],
             config: {
                 systemInstruction: systemInstruction,
                 responseMimeType: "application/json",
@@ -180,7 +174,7 @@ Text to analyze: "${text}"`;
 };
 
 const humanizeStep = async (text: string, tone: AIHumanizerTone, level: number): Promise<string> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     let systemInstruction = `You are an AI text humanizer with one mission: defeat AI detectors by rewriting text to sound authentically human. Your approach will change based on the requested "humanization level" from 0 to 100.`;
     
     let personaInstruction = '';
@@ -258,9 +252,9 @@ const humanizeStep = async (text: string, tone: AIHumanizerTone, level: number):
     const temperature = 0.5 + (level / 100) * 0.5; // Scale temperature from 0.5 to 1.0 based on level
 
     try {
-        const response = await client.models.generateContent({
+        const response = await aiClient.models.generateContent({
             model: model,
-            contents: prompt,
+            contents: [{text: prompt}],
             config: {
                 systemInstruction: systemInstruction,
                 temperature: temperature, 
@@ -318,7 +312,7 @@ export const humanizeText = async (text: string, tone: AIHumanizerTone, initialL
 };
 
 export const generateCitation = async (style: CitationStyle, data: { [key: string]: string }): Promise<string> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     let sourceInfo = "Generate a citation based on the following information:\n";
     if (data.url) {
         sourceInfo = `Generate a citation for the content at this URL: ${data.url}`;
@@ -333,9 +327,9 @@ export const generateCitation = async (style: CitationStyle, data: { [key: strin
     const prompt = `Using the provided source information, generate a single, complete citation in ${style} format. Return only the formatted citation. Information:\n${sourceInfo}`;
 
     try {
-        const response = await client.models.generateContent({
+        const response = await aiClient.models.generateContent({
             model: model,
-            contents: prompt,
+            contents: [{text: prompt}],
             config: {
                 systemInstruction: "You are an expert academic librarian specializing in citation generation. Provide only the formatted citation based on the details provided.",
                 temperature: 0.0,
@@ -350,7 +344,7 @@ export const generateCitation = async (style: CitationStyle, data: { [key: strin
 };
 
 export const writeContent = async (topic: string, length: ContentWriterLength, tone: ContentWriterTone): Promise<string> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     let lengthInstruction = '';
     switch (length) {
         case 'Short':
@@ -368,9 +362,9 @@ export const writeContent = async (topic: string, length: ContentWriterLength, t
     const prompt = `Write content about the following topic: "${topic}". The desired length is ${lengthInstruction} and the tone should be ${tone}. Return only the written content.`;
 
     try {
-        const response = await client.models.generateContent({
+        const response = await aiClient.models.generateContent({
             model: model,
-            contents: prompt,
+            contents: [{text: prompt}],
             config: {
                 systemInstruction: systemInstruction,
                 temperature: 0.8,
@@ -384,7 +378,7 @@ export const writeContent = async (topic: string, length: ContentWriterLength, t
 };
 
 export const gradeEssay = async (text: string): Promise<EssayGrade> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     const systemInstruction = `You are an experienced writing instructor and essay grader. Your task is to provide a comprehensive, constructive, and unbiased evaluation of an essay. Analyze it based on clarity, argumentation, evidence, structure, and grammar.`;
     const prompt = `Please grade the following essay. Provide your feedback in a JSON object with the following structure:
 1.  'score': An overall score from 0 to 100.
@@ -395,9 +389,9 @@ export const gradeEssay = async (text: string): Promise<EssayGrade> => {
 Essay to grade: "${text}"`;
 
     try {
-        const response = await client.models.generateContent({
+        const response = await aiClient.models.generateContent({
             model: model,
-            contents: prompt,
+            contents: [{text: prompt}],
             config: {
                 systemInstruction: systemInstruction,
                 responseMimeType: "application/json",
@@ -422,16 +416,16 @@ Essay to grade: "${text}"`;
 };
 
 export const generateFlashcards = async (text: string): Promise<Flashcard[]> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     const systemInstruction = `You are an academic tool that specializes in creating study aids. Your task is to read the provided text and extract key information to generate a set of flashcards.`;
     const prompt = `From the following text, identify the most important terms and their corresponding definitions or key concepts. Generate a list of flashcards from this information.
 
 Text: "${text}"`;
 
     try {
-        const response = await client.models.generateContent({
+        const response = await aiClient.models.generateContent({
             model: model,
-            contents: prompt,
+            contents: [{text: prompt}],
             config: {
                 systemInstruction: systemInstruction,
                 responseMimeType: "application/json",
@@ -457,16 +451,16 @@ Text: "${text}"`;
 };
 
 export const generatePracticeQuestions = async (text: string): Promise<PracticeQuestion[]> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     const systemInstruction = `You are a helpful study assistant. Your job is to create relevant, short-answer practice questions based on a provided text to help a student test their knowledge. For each question, provide a concise and accurate answer.`;
     const prompt = `Read the following text and generate a list of practice questions that cover the main points.
 
 Text: "${text}"`;
 
     try {
-        const response = await client.models.generateContent({
+        const response = await aiClient.models.generateContent({
             model: model,
-            contents: prompt,
+            contents: [{text: prompt}],
             config: {
                 systemInstruction: systemInstruction,
                 responseMimeType: "application/json",
@@ -493,13 +487,13 @@ Text: "${text}"`;
 };
 
 export const researchTopic = async (topic: string): Promise<ResearchResult> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     const prompt = `You are a research assistant. Provide a concise summary for the topic "${topic}" based on Google Search results.`;
     
     try {
-        const response = await client.models.generateContent({
+        const response = await aiClient.models.generateContent({
             model: model,
-            contents: prompt,
+            contents: [{text: prompt}],
             config: {
                 tools: [{ googleSearch: {} }],
             }
@@ -518,14 +512,14 @@ export const researchTopic = async (topic: string): Promise<ResearchResult> => {
 };
 
 export const completeText = async (text: string): Promise<string> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     const prompt = `Continue writing based on the following text. Add one or two paragraphs that logically follow and expand upon the ideas. Return only the new text to be appended.
 ---
 ${text}`;
     try {
-        const response = await client.models.generateContent({
+        const response = await aiClient.models.generateContent({
             model: model,
-            contents: prompt,
+            contents: [{text: prompt}],
             config: {
                 systemInstruction: "You are an expert writer and AI assistant that completes text.",
                 temperature: 0.7,
@@ -539,7 +533,7 @@ ${text}`;
 };
 
 export const analyzeText = async (text: string): Promise<AnalyticsResult> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     const systemInstruction = `You are a text analysis expert. Analyze the provided text for readability, tone, and word count.`;
     const prompt = `Analyze the following text and return a JSON object with:
 1. 'readability': A description of the reading level (e.g., "8th Grade Level", "Easy to Read", "Very Formal/Academic").
@@ -548,9 +542,9 @@ export const analyzeText = async (text: string): Promise<AnalyticsResult> => {
 
 Text: "${text}"`;
     try {
-        const response = await client.models.generateContent({
+        const response = await aiClient.models.generateContent({
             model: model,
-            contents: prompt,
+            contents: [{text: prompt}],
             config: {
                 systemInstruction: systemInstruction,
                 responseMimeType: "application/json",
@@ -578,9 +572,9 @@ Text: "${text}"`;
 
 export type PlagiarismSource = { uri: string; title: string; };
 export const checkPlagiarism = async (text: string): Promise<PlagiarismSource[]> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     try {
-        const response = await client.models.generateContent({
+        const response = await aiClient.models.generateContent({
             model: model,
             contents: `Does the following text appear elsewhere on the internet? "${text}"`,
             config: {
@@ -597,12 +591,12 @@ export const checkPlagiarism = async (text: string): Promise<PlagiarismSource[]>
 
 
 export const translateText = async (text: string, targetLanguage: string): Promise<string> => {
-    const client = getAiClient();
+    const aiClient = getAiClient();
     const prompt = `Translate the following text to ${targetLanguage}. Return only the translated text. Text: "${text}"`;
     try {
-        const response = await client.models.generateContent({
+        const response = await aiClient.models.generateContent({
             model: model,
-            contents: prompt,
+            contents: [{text: prompt}],
             config: {
                 systemInstruction: `You are a highly accurate translation engine. You will be asked to translate text to a specified language.`,
                 temperature: 0.3,
@@ -616,8 +610,8 @@ export const translateText = async (text: string, targetLanguage: string): Promi
 };
 
 export const createChat = (): Chat => {
-    const client = getAiClient();
-    return client.chats.create({
+    const aiClient = getAiClient();
+    return aiClient.chats.create({
         model: model,
         config: {
             systemInstruction: 'You are ILLBOT, a helpful and knowledgeable AI assistant. Keep your responses concise and informative.',
